@@ -1,0 +1,30 @@
+{
+ "id": 42119,
+ "date": "2026-09-01",
+ "time": "11:17:55",
+ "scientificName": "Vireo huttoni",
+ "commonName": "Hutton's Vireo",
+ "speciesCode": "hutvir",
+ "confidence": 0.86,
+ "latitude":0.0 0.0,
+ "longitude":0.0 0.0,
+ "clipName": "vireo_huttoni_86p_20260901T111755Z_31s.wav",
+ "source": {
+  "id": "rtsp_adf898c6",
+  "displayName": "Guest Gate"
+ },
+ "beginTime": "2026-09-01T11:17:50-07:00",
+ "endTime": "2026-09-01T11:18:19-07:00",
+ "locked": false,
+ "birdImage": {
+  "url": "https://static.avicommons.org/hutvir-339539705-320.jpg",
+  "scientificName": "Vireo huttoni",
+  "licenseName": "CC0 1.0 Universal",
+  "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "authorName": "Adam Jackson",
+  "sourceProvider": "avicommons"
+ },
+ "timestamp": "2026-09-01T11:18:23.750011729-07:00",
+ "eventType": "new_detection",
+ "daysSinceFirstSeen": 44
+}

@@ -88,3 +88,38 @@ def test_looks_like_detection_rejects_partials():
     assert not _looks_like_detection({"commonName": "Crow"})
     assert not _looks_like_detection(None)
     assert _looks_like_detection({"id": 1, "commonName": "Crow"})
+
+
+class TestLiveCapturedEvents:
+    """Regression tests against events captured from a running server.
+
+    The live stream labels confirmed detections with SSE event name
+    ``detection`` but in-band ``eventType: "new_detection"`` — a mismatch the
+    server's own frontend does not handle. These pin our tolerance for it.
+    """
+
+    def test_live_detection_is_accepted(self, harness, sse_detection):
+        assert sse_detection["eventType"] == "new_detection"
+        harness._dispatch("detection", json.dumps(sse_detection))
+        assert len(harness.seen) == 1
+        assert harness.seen[0]["commonName"] == sse_detection["commonName"]
+
+    def test_live_detection_without_sse_name(self, harness, sse_detection):
+        """Even if the event name is lost, eventType alone must suffice."""
+        harness._dispatch(None, json.dumps(sse_detection))
+        assert len(harness.seen) == 1
+
+    def test_live_pending_is_ignored(self, harness, sse_pending):
+        harness._dispatch("pending", json.dumps(sse_pending))
+        assert harness.seen == []
+
+    def test_live_detection_resolves_to_display_name(self, sse_detection):
+        """source.id is the rtsp_<hash>; displayName is what we key on."""
+        from birdnet_go.coordinator import BirdNetCoordinator
+
+        class Stub:
+            pass
+
+        assert sse_detection["source"]["id"].startswith("rtsp_")
+        key = BirdNetCoordinator.source_key_for(Stub(), sse_detection)
+        assert key in {"deck", "front_yard", "guest_gate"}

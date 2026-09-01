@@ -366,14 +366,12 @@ def _detection_attrs(det: dict[str, Any], coordinator: BirdNetCoordinator) -> di
         "days_this_season": det.get("daysThisSeason"),
         "current_season": det.get("currentSeason"),
         "verified": det.get("verified"),
-        # Convenience for picture-glance style cards; resolved against the
-        # server's base URL so it works straight from a dashboard.
-        "thumbnail_url": (
-            f"{coordinator.client.base_url}/api/v2/media/image/"
-            f"{det.get('scientificName', '').replace(' ', '%20')}"
-            if det.get("scientificName")
-            else None
-        ),
+        # Convenience for picture-glance style cards. Live SSE detections embed
+        # a ready CC-licensed image URL; REST payloads don't, so fall back to
+        # the server's own media proxy resolved against its base URL.
+        "thumbnail_url": _thumbnail_url(det, coordinator),
+        "image_attribution": (det.get("birdImage") or {}).get("authorName"),
+        "image_license": (det.get("birdImage") or {}).get("licenseName"),
         "spectrogram_url": (
             f"{coordinator.client.base_url}/api/v2/spectrogram/{det['id']}"
             if det.get("id") is not None
@@ -385,3 +383,12 @@ def _detection_attrs(det: dict[str, Any], coordinator: BirdNetCoordinator) -> di
             else None
         ),
     }
+
+
+def _thumbnail_url(det: dict[str, Any], coordinator: BirdNetCoordinator) -> str | None:
+    """Best available species image for a detection."""
+    if url := (det.get("birdImage") or {}).get("url"):
+        return str(url)
+    if sci := det.get("scientificName"):
+        return f"{coordinator.client.base_url}/api/v2/media/image/{sci.replace(' ', '%20')}"
+    return None

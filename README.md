@@ -85,6 +85,12 @@ days_this_season: 10
 current_season: summer
 ```
 
+> **Note:** live SSE detections carry `days_since_first_seen` but not
+> `days_this_year`, `days_this_season` or `current_season` — those three appear
+> only on the REST representation, so they may be `None` in event data. Guard
+> for that in templates. `days_since_first_seen` (the field
+> `birdnet_go_new_species` keys on) is always present.
+
 ### Example: announce a first-ever species
 
 ```yaml
@@ -146,6 +152,10 @@ entity state and events.
 
 ## Notes
 
+- The stream labels confirmed detections inconsistently: SSE event name
+  `detection`, in-band `eventType` field `new_detection`. This integration
+  accepts either spelling, and falls back to duck-typing on `id` + `commonName`,
+  so it keeps working if a future build settles on one.
 - `pending` SSE events are deliberately ignored. They represent in-progress
   candidates that churn between `active` and `rejected` as the model accumulates
   hits, and acting on them would make entities flap before anything is confirmed.

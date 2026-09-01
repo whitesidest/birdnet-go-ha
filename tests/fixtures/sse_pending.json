@@ -1,0 +1,15 @@
+[
+ {
+  "species": "Black Phoebe",
+  "scientificName": "Sayornis nigricans",
+  "thumbnail": "/api/v2/media/image/Sayornis%20nigricans",
+  "status": "active",
+  "firstDetected": 1788286548,
+  "audioCapturedAt": 1788286627,
+  "lastUpdated": 1788286627,
+  "source": "Deck",
+  "sourceID": "rtsp_e0f5dcab",
+  "bestModelID": "BirdNET_V2.4",
+  "hitCount": 33
+ }
+]

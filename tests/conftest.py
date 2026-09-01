@@ -36,3 +36,15 @@ def species_summary():
 @pytest.fixture
 def realtime():
     return load("realtime.json")
+
+
+@pytest.fixture
+def sse_detection():
+    """A real `detection` event captured from a live BirdNET-Go 20260716."""
+    return load("sse_detection.json")
+
+
+@pytest.fixture
+def sse_pending():
+    """A real `pending` event — in-progress candidates, must be ignored."""
+    return load("sse_pending.json")

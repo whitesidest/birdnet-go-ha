@@ -7,7 +7,11 @@ JSON ``eventType`` field rather than the SSE event name, and falls back to
 logic so we stay compatible with both framings:
 
 * ``connected``  — handshake, carries a clientId
-* ``detection``  — a CONFIRMED detection, same rich shape as the REST API
+* ``detection``  — a CONFIRMED detection. NOTE: the SSE event NAME is
+  ``detection`` but the in-band ``eventType`` field reads ``new_detection``
+  (verified against a live 20260716 server). The frontend's own switch only
+  handles ``detection`` and falls through to its duck-type branch, so we accept
+  both spellings rather than trusting either alone.
 * ``heartbeat``  — keepalive, carries a client count
 * ``pending``    — in-progress candidates (status active/rejected). Deliberately
   IGNORED: these churn as the model accumulates hits and would make entities
@@ -26,6 +30,10 @@ import aiohttp
 from .const import STREAM_BACKOFF_MAX, STREAM_BACKOFF_MIN
 
 _LOGGER = logging.getLogger(__name__)
+
+# The server labels confirmed detections inconsistently: SSE event name
+# "detection", in-band eventType "new_detection". Accept either.
+DETECTION_KINDS = frozenset({"detection", "new_detection"})
 
 
 def _looks_like_detection(payload: Any) -> bool:
@@ -149,7 +157,7 @@ class BirdNetStream:
         if kind in ("heartbeat", "connected", "pending"):
             return
 
-        if kind == "detection":
+        if kind in DETECTION_KINDS:
             # Some builds wrap the detection under a "data" key.
             body = payload.get("data") if isinstance(payload, dict) else None
             candidate = body if _looks_like_detection(body) else payload
