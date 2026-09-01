@@ -1,0 +1,80 @@
+{
+ "rtsp": {
+  "streams": [
+   {
+    "name": "Deck",
+    "url": "rtsp://192.0.2.10:8554/deck",
+    "enabled": true,
+    "type": "rtsp",
+    "transport": "tcp",
+    "channelMode": "",
+    "gain": 0,
+    "quietHours": {
+     "enabled": false,
+     "mode": "",
+     "startTime": "",
+     "endTime": "",
+     "startEvent": "",
+     "startOffset": 0,
+     "endEvent": "",
+     "endOffset": 0
+    },
+    "models": [
+     "birdnet"
+    ]
+   },
+   {
+    "name": "Front Yard",
+    "url": "rtsp://192.0.2.10:8554/front",
+    "enabled": true,
+    "type": "rtsp",
+    "transport": "tcp",
+    "channelMode": "",
+    "gain": 6,
+    "quietHours": {
+     "enabled": false,
+     "mode": "",
+     "startTime": "",
+     "endTime": "",
+     "startEvent": "",
+     "startOffset": 0,
+     "endEvent": "",
+     "endOffset": 0
+    },
+    "models": [
+     "birdnet",
+     "perch_v2"
+    ]
+   },
+   {
+    "name": "Guest Gate",
+    "url": "rtsp://192.0.2.10:8554/guest_gate",
+    "enabled": true,
+    "type": "rtsp",
+    "transport": "tcp",
+    "channelMode": "",
+    "gain": 0,
+    "quietHours": {
+     "enabled": false,
+     "mode": "",
+     "startTime": "",
+     "endTime": "",
+     "startEvent": "",
+     "startOffset": 0,
+     "endEvent": "",
+     "endOffset": 0
+    },
+    "models": [
+     "birdnet",
+     "perch_v2"
+    ]
+   }
+  ],
+  "transport": "tcp",
+  "health": {
+   "healthyDataThreshold": 60,
+   "monitoringInterval": 30
+  },
+  "ffmpegParameters": []
+ }
+}

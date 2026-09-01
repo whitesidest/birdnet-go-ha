@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to BirdNET-Go",
+        "description": "Enter the address of your BirdNET-Go server. A token is only needed if the server is not reachable from Home Assistant's subnet without one.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate",
+          "token": "API token (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach BirdNET-Go at that address.",
+      "invalid_auth": "The server rejected the token."
+    },
+    "abort": {
+      "already_configured": "This BirdNET-Go server is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "BirdNET-Go options",
+        "data": {
+          "min_confidence": "Minimum confidence (0.0 - 1.0)"
+        },
+        "description": "Detections below this confidence are ignored for both entity state and events."
+      }
+    }
+  }
+}
