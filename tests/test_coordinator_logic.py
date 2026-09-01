@@ -115,3 +115,53 @@ def test_species_week_list_excludes_stale(species_summary):
     assert isinstance(rows, list)
     assert len(rows) <= len(species_summary)
     assert all(set(r) == {"species", "scientific_name", "count", "last", "conf"} for r in rows)
+
+
+class TestBackfill:
+    """Cold-start seeding must fill gaps without overwriting pushed state."""
+
+    def _coord(self, recent):
+        import asyncio
+        from birdnet_go.coordinator import BirdNetCoordinator
+
+        class FakeClient:
+            async def recent_detections(self):
+                return recent
+
+        c = BirdNetCoordinator.__new__(BirdNetCoordinator)
+        c.client = FakeClient()
+        c.last_detection = {}
+        c.last_detection_any = None
+        c.sources = {"deck": {"name": "Deck"}, "front_yard": {"name": "Front Yard"},
+                     "guest_gate": {"name": "Guest Gate"}}
+        return c, asyncio
+
+    def test_fills_every_empty_source(self, detections_recent):
+        c, aio = self._coord(detections_recent)
+        aio.run(c._backfill_last_detections())
+        assert set(c.last_detection) <= {"deck", "front_yard", "guest_gate"}
+        assert c.last_detection, "nothing was backfilled"
+        assert c.last_detection_any is not None
+
+    def test_newest_wins_per_source(self, detections_recent):
+        c, aio = self._coord(detections_recent)
+        aio.run(c._backfill_last_detections())
+        from birdnet_go.coordinator import BirdNetCoordinator
+
+        class Stub:
+            pass
+
+        for key, det in c.last_detection.items():
+            same = [d for d in detections_recent
+                    if BirdNetCoordinator.source_key_for(Stub(), d) == key]
+            newest = max(same, key=lambda d: str(d.get("timestamp") or ""))
+            assert det["id"] == newest["id"]
+
+    def test_never_overwrites_pushed_state(self, detections_recent):
+        c, aio = self._coord(detections_recent)
+        sentinel = {"id": -1, "commonName": "Pushed Bird",
+                    "source": {"displayName": "Deck"}, "timestamp": "1970-01-01T00:00:00+00:00"}
+        c.last_detection["deck"] = sentinel
+        c.last_detection_any = sentinel
+        aio.run(c._backfill_last_detections())
+        assert c.last_detection["deck"] is sentinel, "live push was clobbered by backfill"

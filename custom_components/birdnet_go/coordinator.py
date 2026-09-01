@@ -96,6 +96,17 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._refresh_sources(realtime)
 
+        # Detections only arrive by push, so on a cold start every per-source
+        # sensor would sit at `unknown` until that particular microphone next
+        # hears something — potentially hours, and again after every restart.
+        # Seed from history instead. This only ever fills gaps: a source that
+        # has already received a pushed detection is left alone, so live SSE
+        # data is never overwritten by a staler REST snapshot.
+        try:
+            await self._backfill_last_detections()
+        except BirdNetApiError as err:
+            _LOGGER.debug("detection backfill unavailable: %s", err)
+
         detections_today = sum(int(s.get("count") or 0) for s in daily)
         species_today = len([s for s in daily if (s.get("count") or 0) > 0])
         new_today = [
@@ -162,6 +173,27 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return datetime.fromisoformat(str(value)).timestamp()
         except (TypeError, ValueError):
             return None
+
+
+    async def _backfill_last_detections(self) -> None:
+        """Fill in per-source state from recent history without clobbering push."""
+        missing = {k for k in self.sources if k not in self.last_detection}
+        if not missing and self.last_detection_any is not None:
+            return
+
+        recent = await self.client.recent_detections()
+        if not recent:
+            return
+
+        # Oldest first so the newest detection per source ends up winning.
+        for det in sorted(recent, key=lambda d: str(d.get("timestamp") or "")):
+            key = self.source_key_for(det)
+            if key in missing:
+                self.last_detection[key] = det
+
+        if self.last_detection_any is None:
+            newest = max(recent, key=lambda d: str(d.get("timestamp") or ""))
+            self.last_detection_any = newest
 
     def _refresh_sources(self, realtime: dict[str, Any]) -> None:
         streams = (realtime.get("rtsp") or {}).get("streams") or []
