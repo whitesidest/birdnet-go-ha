@@ -65,6 +65,11 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.sources: dict[str, dict[str, Any]] = {}
         self.stream_connected = False
         self.server_info: dict[str, Any] = {}
+        # source_key -> {"level": int, "clipping": bool} published to entities
+        self.audio_levels: dict[str, dict[str, Any]] = {}
+        self.audio_stream_connected = False
+        # in-memory accumulator between flushes; never read by entities
+        self._audio_accum: dict[str, dict[str, Any]] = {}
 
     # --- polled half -----------------------------------------------------
 
@@ -174,6 +179,45 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (TypeError, ValueError):
             return None
 
+
+
+    # --- audio levels ----------------------------------------------------
+
+    def record_audio_levels(self, levels: dict[str, Any]) -> None:
+        """Fold one high-rate audio-level message into the accumulator.
+
+        Called ~16x/sec, so this must stay cheap and must not touch entity
+        state. Keeps the window PEAK and latches clipping.
+        """
+        for entry in levels.values():
+            if not isinstance(entry, dict):
+                continue
+            key = slugify_source(entry.get("name") or entry.get("source") or "")
+            if key == "unknown":
+                continue
+            try:
+                level = int(entry.get("level") or 0)
+            except (TypeError, ValueError):
+                level = 0
+            slot = self._audio_accum.setdefault(key, {"level": 0, "clipping": False})
+            if level > slot["level"]:
+                slot["level"] = level
+            if entry.get("clipping"):
+                slot["clipping"] = True
+
+    def flush_audio_levels(self) -> set[str]:
+        """Publish the accumulated window; return the source keys that changed."""
+        changed: set[str] = set()
+        for key, slot in self._audio_accum.items():
+            previous = self.audio_levels.get(key)
+            if previous != slot:
+                self.audio_levels[key] = dict(slot)
+                changed.add(key)
+        # Sources that went completely silent stop appearing in the stream's
+        # payload only if removed upstream; a silent mic still reports level 0,
+        # so resetting here is what makes peak-per-window meaningful.
+        self._audio_accum = {}
+        return changed
 
     async def _backfill_last_detections(self) -> None:
         """Fill in per-source state from recent history without clobbering push."""

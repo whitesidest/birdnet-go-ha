@@ -1,0 +1,23 @@
+{
+ "type": "audio-level",
+ "levels": {
+  "rtsp_24de803e": {
+   "level": 0,
+   "clipping": false,
+   "source": "rtsp_24de803e",
+   "name": "Front Yard"
+  },
+  "rtsp_adf898c6": {
+   "level": 0,
+   "clipping": false,
+   "source": "rtsp_adf898c6",
+   "name": "Guest Gate"
+  },
+  "rtsp_e0f5dcab": {
+   "level": 32,
+   "clipping": false,
+   "source": "rtsp_e0f5dcab",
+   "name": "Deck"
+  }
+ }
+}

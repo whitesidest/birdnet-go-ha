@@ -45,27 +45,34 @@ def _looks_like_detection(payload: Any) -> bool:
     )
 
 
-class BirdNetStream:
-    """Maintains a reconnecting SSE subscription to the detection stream."""
+class SSEStream:
+    """Reconnecting Server-Sent Events reader.
+
+    Subclasses implement :meth:`handle` to consume decoded events. The
+    connection loop, SSE framing and exponential backoff live here so every
+    BirdNET-Go stream shares one implementation.
+    """
 
     def __init__(
         self,
         session: aiohttp.ClientSession,
-        base_url: str,
+        url: str,
         headers: dict[str, str],
-        on_detection: Callable[[dict[str, Any]], None],
-        on_state: Callable[[bool], None],
+        on_state: Callable[[bool], None] | None = None,
         verify_ssl: bool = True,
     ) -> None:
         self._session = session
-        self._url = f"{base_url.rstrip('/')}/api/v2/detections/stream"
+        self._url = url
         self._headers = {**headers, "Accept": "text/event-stream"}
-        self._on_detection = on_detection
         self._on_state = on_state
         self._verify_ssl = verify_ssl
         self._task: asyncio.Task | None = None
         self._closing = False
         self.connected = False
+
+    def handle(self, event_name: str | None, payload: Any) -> None:
+        """Consume one decoded event. Override in a subclass."""
+        raise NotImplementedError
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -86,7 +93,8 @@ class BirdNetStream:
     def _set_connected(self, value: bool) -> None:
         if value != self.connected:
             self.connected = value
-            self._on_state(value)
+            if self._on_state:
+                self._on_state(value)
 
     async def _run(self) -> None:
         backoff = STREAM_BACKOFF_MIN
@@ -97,7 +105,7 @@ class BirdNetStream:
             except asyncio.CancelledError:
                 raise
             except Exception as err:  # noqa: BLE001 - never let the loop die
-                _LOGGER.debug("BirdNET-Go stream dropped: %s", err)
+                _LOGGER.debug("stream %s dropped: %s", self._url, err)
             finally:
                 self._set_connected(False)
 
@@ -115,7 +123,7 @@ class BirdNetStream:
         ) as resp:
             resp.raise_for_status()
             self._set_connected(True)
-            _LOGGER.debug("BirdNET-Go stream connected")
+            _LOGGER.debug("stream connected: %s", self._url)
 
             event_name: str | None = None
             data_lines: list[str] = []
@@ -126,9 +134,8 @@ class BirdNetStream:
                 line = raw.decode("utf-8", "replace").rstrip("\r\n")
 
                 if not line:
-                    # blank line terminates an event
                     if data_lines:
-                        self._dispatch(event_name, "\n".join(data_lines))
+                        self._decode(event_name, "\n".join(data_lines))
                     event_name, data_lines = None, []
                     continue
                 if line.startswith(":"):
@@ -140,25 +147,44 @@ class BirdNetStream:
                 elif field == "data":
                     data_lines.append(value)
 
-    def _dispatch(self, event_name: str | None, data: str) -> None:
+    def _decode(self, event_name: str | None, data: str) -> None:
         try:
             payload = json.loads(data)
         except ValueError:
             _LOGGER.debug("Unparseable SSE data: %s", data[:200])
             return
+        self.handle(event_name, payload)
 
-        # The server labels events both ways; prefer the in-band field the
-        # official frontend trusts, fall back to the SSE event name.
-        kind = None
-        if isinstance(payload, dict):
-            kind = payload.get("eventType")
+
+class BirdNetStream(SSEStream):
+    """Live confirmed detections from ``/api/v2/detections/stream``."""
+
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        base_url: str,
+        headers: dict[str, str],
+        on_detection: Callable[[dict[str, Any]], None],
+        on_state: Callable[[bool], None],
+        verify_ssl: bool = True,
+    ) -> None:
+        super().__init__(
+            session,
+            f"{base_url.rstrip('/')}/api/v2/detections/stream",
+            headers,
+            on_state=on_state,
+            verify_ssl=verify_ssl,
+        )
+        self._on_detection = on_detection
+
+    def handle(self, event_name: str | None, payload: Any) -> None:
+        kind = payload.get("eventType") if isinstance(payload, dict) else None
         kind = kind or event_name
 
         if kind in ("heartbeat", "connected", "pending"):
             return
 
         if kind in DETECTION_KINDS:
-            # Some builds wrap the detection under a "data" key.
             body = payload.get("data") if isinstance(payload, dict) else None
             candidate = body if _looks_like_detection(body) else payload
             if _looks_like_detection(candidate):
@@ -172,3 +198,7 @@ class BirdNetStream:
             for item in payload:
                 if _looks_like_detection(item):
                     self._on_detection(item)
+
+    # Kept for the test-suite's direct-dispatch harness.
+    def _dispatch(self, event_name: str | None, data: str) -> None:
+        self._decode(event_name, data)

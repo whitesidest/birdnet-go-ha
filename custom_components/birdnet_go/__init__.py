@@ -10,19 +10,27 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from datetime import timedelta
+
+from homeassistant.helpers.event import async_track_time_interval
+
 from .api import BirdNetClient
+from .audio_stream import BirdNetAudioLevelStream
 from .const import (
+    CONF_AUDIO_LEVEL_INTERVAL,
     CONF_HOST,
     CONF_MIN_CONFIDENCE,
     CONF_PORT,
     CONF_SSL,
     CONF_TOKEN,
     CONF_VERIFY_SSL,
+    DEFAULT_AUDIO_LEVEL_INTERVAL,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_PORT,
     DOMAIN,
     EVENT_DETECTION,
     EVENT_NEW_SPECIES,
+    SIGNAL_AUDIO_LEVEL,
     SIGNAL_DETECTION,
     SIGNAL_STREAM_STATE,
 )
@@ -106,10 +114,53 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     stream.start()
 
+    # --- audio levels -----------------------------------------------------
+    # The upstream endpoint fires ~16x/sec. Accumulate in memory and flush a
+    # summary on a timer so the recorder isn't flooded; interval 0 opts out.
+    audio_interval = int(
+        entry.options.get(CONF_AUDIO_LEVEL_INTERVAL, DEFAULT_AUDIO_LEVEL_INTERVAL)
+    )
+    audio_stream: BirdNetAudioLevelStream | None = None
+    cancel_flush = None
+
+    if audio_interval > 0:
+
+        @callback
+        def _handle_levels(levels: dict[str, Any]) -> None:
+            coordinator.record_audio_levels(levels)
+
+        @callback
+        def _handle_audio_state(connected: bool) -> None:
+            coordinator.audio_stream_connected = connected
+
+        audio_stream = BirdNetAudioLevelStream(
+            session,
+            client.base_url,
+            client.headers,
+            on_levels=_handle_levels,
+            on_state=_handle_audio_state,
+            verify_ssl=verify_ssl,
+        )
+        audio_stream.start()
+
+        @callback
+        def _flush(_now: Any) -> None:
+            if changed := coordinator.flush_audio_levels():
+                async_dispatcher_send(
+                    hass, f"{SIGNAL_AUDIO_LEVEL}_{entry.entry_id}", changed
+                )
+
+        cancel_flush = async_track_time_interval(
+            hass, _flush, timedelta(seconds=audio_interval)
+        )
+        entry.async_on_unload(cancel_flush)
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
         "client": client,
         "stream": stream,
+        "audio_stream": audio_stream,
+        "audio_interval": audio_interval,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -125,6 +176,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     stored = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
-    if stored and (stream := stored.get("stream")):
-        await stream.stop()
+    if stored:
+        if stream := stored.get("stream"):
+            await stream.stop()
+        if audio_stream := stored.get("audio_stream"):
+            await audio_stream.stop()
     return unload_ok

@@ -48,3 +48,9 @@ def sse_detection():
 def sse_pending():
     """A real `pending` event — in-progress candidates, must be ignored."""
     return load("sse_pending.json")
+
+
+@pytest.fixture
+def audio_level():
+    """A real audio-level message captured from a live server."""
+    return load("audio_level.json")

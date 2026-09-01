@@ -35,6 +35,7 @@ overwrite each other, and values persist until that source hears something new.
   `days_this_season`, `current_season`.
 - **Events** on the Home Assistant bus for automations.
 - **Server diagnostics**: CPU, memory, disk, uptime, version, database status.
+- **Live audio levels** per microphone, summarised so they don't flood the recorder.
 
 ## Entities
 
@@ -46,6 +47,8 @@ overwrite each other, and values persist until that source hears something new.
 | `sensor.<source>_last_confidence` | Confidence of that detection, as a percentage. |
 | `sensor.<source>_last_heard` | Timestamp of that detection. |
 | `binary_sensor.<source>_recently_active` | Detection within the last 30 minutes. |
+| `sensor.<source>_sound_level` | Peak audio level (0–100) over the last update window. |
+| `binary_sensor.<source>_audio_clipping` | Audio clipped during the last window — the mic's gain is too high. |
 
 ### Server
 
@@ -125,6 +128,33 @@ automation:
         target: { entity_id: light.deck }
 ```
 
+## Audio levels
+
+BirdNET-Go's `/api/v2/streams/audio-level` endpoint emits roughly **16 messages
+per second**. Writing that straight through would be about four million state
+changes a day across three microphones, which would bloat the recorder database
+badly.
+
+Instead, messages are accumulated in memory and a timer publishes a summary
+every **10 seconds** (configurable in the options flow; set it to `0` to disable
+the sound level and clipping entities entirely). Measured against a live server:
+1,431 potential state writes over 30 seconds became 9.
+
+The published value is the window **peak**, not the latest sample or the mean. A
+bird call is a transient lasting a second or two — point-sampling would usually
+miss it, and averaging would bury it in the noise floor. Clipping latches for
+the window, since one clipped buffer is the thing worth surfacing.
+
+If you want the levels for tuning but not for history, exclude them from the
+recorder:
+
+```yaml
+recorder:
+  exclude:
+    entity_globs:
+      - sensor.*_sound_level
+```
+
 ## Installation
 
 ### HACS (custom repository)
@@ -148,7 +178,8 @@ setup. Supply a token only if Home Assistant reaches the server from outside tha
 subnet.
 
 The options flow exposes a **minimum confidence** floor (0.0–1.0) applied to both
-entity state and events.
+entity state and events, and the **audio level update interval** in seconds
+(default 10, `0` disables the audio level entities).
 
 ## Notes
 

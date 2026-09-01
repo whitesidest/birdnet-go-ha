@@ -14,7 +14,13 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, SIGNAL_DETECTION, SIGNAL_STREAM_STATE, SOURCE_ACTIVE_WINDOW
+from .const import (
+    DOMAIN,
+    SIGNAL_AUDIO_LEVEL,
+    SIGNAL_DETECTION,
+    SIGNAL_STREAM_STATE,
+    SOURCE_ACTIVE_WINDOW,
+)
 from .coordinator import BirdNetCoordinator
 from .entity import BirdNetHubEntity, BirdNetSourceEntity
 
@@ -23,7 +29,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up BirdNET-Go binary sensors."""
-    coordinator: BirdNetCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    stored = hass.data[DOMAIN][entry.entry_id]
+    coordinator: BirdNetCoordinator = stored["coordinator"]
+    audio_enabled = bool(stored.get("audio_interval"))
 
     entities: list[BinarySensorEntity] = [
         BirdNetOnlineSensor(coordinator, entry.entry_id),
@@ -39,6 +47,8 @@ async def async_setup_entry(
                 continue
             known.add(key)
             built.append(BirdNetSourceActiveSensor(coordinator, entry.entry_id, key))
+            if audio_enabled:
+                built.append(BirdNetSourceClippingSensor(coordinator, entry.entry_id, key))
         return built
 
     entities.extend(_source_entities(list(coordinator.sources)))
@@ -164,3 +174,46 @@ class BirdNetSourceActiveSensor(BirdNetSourceEntity, BinarySensorEntity):
             "enabled": self._source.get("enabled"),
             "models": self._source.get("models"),
         }
+
+
+class BirdNetSourceClippingSensor(BirdNetSourceEntity, BinarySensorEntity):
+    """Whether this source's audio clipped during the last flush window.
+
+    Latched rather than sampled: one clipped buffer in the window is enough to
+    report, because clipping means the microphone gain is set too high and
+    detections from that source will be degraded.
+    """
+
+    _attr_name = "Audio Clipping"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self, coordinator: BirdNetCoordinator, entry_id: str, source_key: str
+    ) -> None:
+        super().__init__(coordinator, entry_id, source_key)
+        self._attr_unique_id = f"{entry_id}_{source_key}_audio_clipping"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_AUDIO_LEVEL}_{self._entry_id}",
+                self._on_levels,
+            )
+        )
+
+    @callback
+    def _on_levels(self, changed: set[str]) -> None:
+        if self._source_key in changed:
+            self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.audio_stream_connected
+
+    @property
+    def is_on(self) -> bool:
+        entry = self.coordinator.audio_levels.get(self._source_key)
+        return bool(entry and entry.get("clipping"))

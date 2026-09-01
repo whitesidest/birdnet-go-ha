@@ -26,9 +26,10 @@
       "init": {
         "title": "BirdNET-Go options",
         "data": {
-          "min_confidence": "Minimum confidence (0.0 - 1.0)"
+          "min_confidence": "Minimum confidence (0.0 - 1.0)",
+          "audio_level_interval": "Audio level update interval (seconds, 0 = off)"
         },
-        "description": "Detections below this confidence are ignored for both entity state and events."
+        "description": "Detections below the confidence floor are ignored for both entity state and events.\\n\\nThe audio level stream updates ~16x/second; the interval controls how often that is summarised into sensor state. Lower values mean more recorder writes. Set 0 to disable the sound level and clipping entities entirely."
       }
     }
   }

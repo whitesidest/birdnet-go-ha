@@ -24,6 +24,14 @@ DEFAULT_VERIFY_SSL = True
 CONF_MIN_CONFIDENCE = "min_confidence"
 DEFAULT_MIN_CONFIDENCE = 0.0
 
+# Audio-level stream flush cadence. The upstream SSE endpoint fires ~16x/sec;
+# this is how often that is summarised into entity state. 0 disables the audio
+# level entities entirely.
+CONF_AUDIO_LEVEL_INTERVAL = "audio_level_interval"
+DEFAULT_AUDIO_LEVEL_INTERVAL = 10
+MIN_AUDIO_LEVEL_INTERVAL = 0
+MAX_AUDIO_LEVEL_INTERVAL = 300
+
 # Analytics/health polling. Detections themselves arrive over SSE, so this
 # interval only governs the aggregate counters and diagnostics — it can be
 # lazy without making the dashboard feel stale.
@@ -32,6 +40,7 @@ DEFAULT_SCAN_INTERVAL = timedelta(minutes=5)
 # Dispatcher signals
 SIGNAL_DETECTION = f"{DOMAIN}_detection"
 SIGNAL_STREAM_STATE = f"{DOMAIN}_stream_state"
+SIGNAL_AUDIO_LEVEL = f"{DOMAIN}_audio_level"
 
 # Home Assistant event-bus events
 EVENT_DETECTION = f"{DOMAIN}_detection"

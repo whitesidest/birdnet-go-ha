@@ -17,17 +17,21 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import BirdNetApiError, BirdNetAuthError, BirdNetClient
 from .const import (
+    CONF_AUDIO_LEVEL_INTERVAL,
     CONF_HOST,
     CONF_MIN_CONFIDENCE,
     CONF_PORT,
     CONF_SSL,
     CONF_TOKEN,
     CONF_VERIFY_SSL,
+    DEFAULT_AUDIO_LEVEL_INTERVAL,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_PORT,
     DEFAULT_SSL,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
+    MAX_AUDIO_LEVEL_INTERVAL,
+    MIN_AUDIO_LEVEL_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,13 +114,23 @@ class BirdNetOptionsFlow(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self.config_entry.options.get(
-            CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE
-        )
+        opts = self.config_entry.options
         schema = vol.Schema(
             {
-                vol.Optional(CONF_MIN_CONFIDENCE, default=current): vol.All(
-                    vol.Coerce(float), vol.Range(min=0.0, max=1.0)
+                vol.Optional(
+                    CONF_MIN_CONFIDENCE,
+                    default=opts.get(CONF_MIN_CONFIDENCE, DEFAULT_MIN_CONFIDENCE),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
+                vol.Optional(
+                    CONF_AUDIO_LEVEL_INTERVAL,
+                    default=opts.get(
+                        CONF_AUDIO_LEVEL_INTERVAL, DEFAULT_AUDIO_LEVEL_INTERVAL
+                    ),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(
+                        min=MIN_AUDIO_LEVEL_INTERVAL, max=MAX_AUDIO_LEVEL_INTERVAL
+                    ),
                 ),
             }
         )
