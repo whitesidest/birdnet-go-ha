@@ -1,13 +1,15 @@
 {
   "domain": "birdnet_go",
   "name": "BirdNET-Go",
-  "version": "0.1.0",
-  "documentation": "https://github.com/whitesidest/birdnet-go-ha",
-  "issue_tracker": "https://github.com/whitesidest/birdnet-go-ha/issues",
-  "codeowners": ["@whitesidest"],
+  "codeowners": [
+    "@whitesidest"
+  ],
   "config_flow": true,
-  "iot_class": "local_push",
+  "dependencies": [],
+  "documentation": "https://github.com/whitesidest/birdnet-go-ha",
   "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/whitesidest/birdnet-go-ha/issues",
   "requirements": [],
-  "dependencies": []
+  "version": "0.1.0"
 }
