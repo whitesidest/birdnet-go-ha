@@ -102,17 +102,66 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             s for s in daily if s.get("days_since_first_seen") == 0
         ]
 
+        week_list = self._species_week_list(summary)
+
         return {
             "health": health,
             "daily": daily,
             "summary": summary,
             "detections_today": detections_today,
             "species_today": species_today,
+            "species_today_list": self._species_today_list(daily),
             "species_total": len(summary),
-            "species_week": self._species_week(summary),
+            "species_week": len(week_list),
+            "species_week_list": week_list,
             "new_species_today": len(new_today),
             "new_species_today_names": [s.get("common_name") for s in new_today],
         }
+
+    @staticmethod
+    def _species_today_list(daily: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Compact per-species rows for dashboard tables, busiest first."""
+        rows = [
+            {
+                "species": entry.get("common_name"),
+                "scientific_name": entry.get("scientific_name"),
+                "count": int(entry.get("count") or 0),
+                "last": entry.get("latest_heard"),
+                "conf": round(float(entry.get("max_confidence") or 0) * 100),
+                "new": entry.get("days_since_first_seen") == 0,
+            }
+            for entry in daily
+            if (entry.get("count") or 0) > 0
+        ]
+        return sorted(rows, key=lambda r: r["count"], reverse=True)
+
+    def _species_week_list(self, summary: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Same shape as the daily rows, for species heard in the last 7 days."""
+        cutoff = dt_util.utcnow().timestamp() - 7 * 86400
+        rows = []
+        for entry in summary:
+            ts = self._parse_ts(entry.get("last_heard"))
+            if ts is None or ts < cutoff:
+                continue
+            rows.append(
+                {
+                    "species": entry.get("common_name"),
+                    "scientific_name": entry.get("scientific_name"),
+                    "count": int(entry.get("count") or 0),
+                    "last": entry.get("last_heard"),
+                    "conf": round(float(entry.get("max_confidence") or 0) * 100),
+                }
+            )
+        return sorted(rows, key=lambda r: r["count"], reverse=True)
+
+    @staticmethod
+    def _parse_ts(value: Any) -> float | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value)).timestamp()
+        except (TypeError, ValueError):
+            return None
 
     def _refresh_sources(self, realtime: dict[str, Any]) -> None:
         streams = (realtime.get("rtsp") or {}).get("streams") or []
@@ -126,25 +175,6 @@ class BirdNetCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "enabled": stream.get("enabled", True),
                 "models": stream.get("models") or [],
             }
-
-    @staticmethod
-    def _species_week(summary: list[dict[str, Any]]) -> int:
-        """Distinct species heard in the last 7 days, from all-time summary."""
-        if not summary:
-            return 0
-        cutoff = dt_util.utcnow().timestamp() - 7 * 86400
-        count = 0
-        for entry in summary:
-            last = entry.get("last_heard")
-            if not last:
-                continue
-            try:
-                ts = datetime.fromisoformat(last)
-            except (TypeError, ValueError):
-                continue
-            if ts.timestamp() >= cutoff:
-                count += 1
-        return count
 
     # --- push half -------------------------------------------------------
 

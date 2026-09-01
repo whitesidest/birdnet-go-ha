@@ -78,6 +78,40 @@ def test_species_week_counts_recent_only(species_summary):
     """Entries last heard over a week ago must not count toward the weekly total."""
     from birdnet_go.coordinator import BirdNetCoordinator
 
-    result = BirdNetCoordinator._species_week(species_summary)
-    assert isinstance(result, int)
-    assert 0 <= result <= len(species_summary)
+    class Stub:
+        _parse_ts = staticmethod(BirdNetCoordinator._parse_ts)
+
+    rows = BirdNetCoordinator._species_week_list(Stub(), species_summary)
+    assert 0 <= len(rows) <= len(species_summary)
+
+    # A species last heard 30 days ago must be excluded.
+    stale = [{"common_name": "Ghost Bird", "last_heard": "2020-01-01T00:00:00-07:00",
+              "count": 5, "max_confidence": 0.9, "scientific_name": "X y"}]
+    assert BirdNetCoordinator._species_week_list(Stub(), stale) == []
+
+
+def test_species_today_list_shape(species_daily):
+    """Dashboard tables consume species/count/last/conf — pin that contract."""
+    from birdnet_go.coordinator import BirdNetCoordinator
+
+    rows = BirdNetCoordinator._species_today_list(species_daily)
+    assert rows, "fixture had no species with detections"
+    assert set(rows[0]) == {"species", "scientific_name", "count", "last", "conf", "new"}
+    # busiest first
+    assert [r["count"] for r in rows] == sorted(
+        [r["count"] for r in rows], reverse=True
+    )
+    assert all(r["count"] > 0 for r in rows)
+    assert all(0 <= r["conf"] <= 100 for r in rows)
+
+
+def test_species_week_list_excludes_stale(species_summary):
+    from birdnet_go.coordinator import BirdNetCoordinator
+
+    class Stub:
+        _parse_ts = staticmethod(BirdNetCoordinator._parse_ts)
+
+    rows = BirdNetCoordinator._species_week_list(Stub(), species_summary)
+    assert isinstance(rows, list)
+    assert len(rows) <= len(species_summary)
+    assert all(set(r) == {"species", "scientific_name", "count", "last", "conf"} for r in rows)

@@ -47,6 +47,12 @@ HUB_SENSORS: list[dict[str, Any]] = [
         "icon": "mdi:bird",
         "state_class": SensorStateClass.MEASUREMENT,
         "value": lambda d: d.get("species_today"),
+        # `species` is a table-ready list (species/count/last/conf/new) so
+        # dashboards can render a breakdown without extra template sensors.
+        "attrs": lambda d: {
+            "species": d.get("species_today_list") or [],
+            "detections": d.get("detections_today") or 0,
+        },
     },
     {
         "key": "species_week",
@@ -54,6 +60,7 @@ HUB_SENSORS: list[dict[str, Any]] = [
         "icon": "mdi:calendar-week",
         "state_class": SensorStateClass.MEASUREMENT,
         "value": lambda d: d.get("species_week"),
+        "attrs": lambda d: {"species": d.get("species_week_list") or []},
     },
     {
         "key": "species_total",
