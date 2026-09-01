@@ -3,7 +3,9 @@
 
 Not part of the pytest suite (it needs a live BirdNET-Go). Run manually:
 
-    python scripts/live_check.py birdnet.local 8080 [seconds]
+    python scripts/live_check.py <host> [port] [seconds]
+
+e.g. python scripts/live_check.py birdnet.local 8080 60
 """
 from __future__ import annotations
 
@@ -21,7 +23,10 @@ from birdnet_go.stream import BirdNetStream  # noqa: E402
 
 
 async def main() -> int:
-    host = sys.argv[1] if len(sys.argv) > 1 else "birdnet.local"
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    host = sys.argv[1]
     port = sys.argv[2] if len(sys.argv) > 2 else "8080"
     listen_s = int(sys.argv[3]) if len(sys.argv) > 3 else 45
     base = f"http://{host}:{port}"

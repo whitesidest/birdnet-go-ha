@@ -6,8 +6,8 @@
  "commonName": "Hutton's Vireo",
  "speciesCode": "hutvir",
  "confidence": 0.86,
- "latitude":0.0 0.0,
- "longitude":0.0 0.0,
+ "latitude": 0.0,
+ "longitude": 0.0,
  "clipName": "vireo_huttoni_86p_20260901T111755Z_31s.wav",
  "source": {
   "id": "rtsp_adf898c6",
